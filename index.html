@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta de Clima e Qualidade do Ar</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: auto;
+            padding: 20px;
+            background-size: cover;
+            background-position: center;
+            transition: background-image 1s ease-in-out;
+            backdrop-filter: blur(10px);
+            color: white;
+        }
+
+        .info-box {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: opacity 0.3s ease;
+        }
+
+        .info-item {
+            margin: 8px 0;
+            font-size: 1.1em;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
+        }
+
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.8em;
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.6);
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+        }
+
+        p {
+            text-align: center;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <h1>Consulta de Clima e Qualidade do Ar</h1>
+
+    <label for="state">Estado:</label>
+    <select id="state" onchange="loadCities()"></select>
+
+    <label for="city">Cidade:</label>
+    <select id="city" onchange="fetchWeather()"></select>
+
+    <p>Período de Coleta: <span id="collectionDate"></span></p>
+
+    <div id="weatherResult" class="info-box" style="display: none;">
+        <h3>Dados do Clima</h3>
+        <p class="info-item" id="temp"></p>
+        <p class="info-item" id="rain"></p>
+        <p class="info-item" id="condition"></p>
+        <p class="info-item" id="feels_like"></p>
+        <p class="info-item" id="humidity"></p>
+        <p class="info-item" id="wind"></p>
+    </div>
+
+    <div id="airQualityResult" class="info-box" style="display: none;">
+        <h3>Qualidade do Ar</h3>
+        <p class="info-item" id="aqi"></p>
+        <p class="info-item" id="pollutants"></p>
+    </div>
+
+    <p id="errorMessage" class="error" style="display: none;"></p>
+
+    <script>
+        const apiKey1 = "93ad722bc7c91c14b803c8b85e18d7d8";
+        const apiKey2 = "489182eaa4c77d2133db758dd864ca26";
+
+        document.getElementById("collectionDate").textContent = (new Date()).toLocaleDateString("pt-BR");
+
+        async function loadStates() {
+            const stateSelect = document.getElementById("state");
+
+            try {
+                const response = await fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados");
+                const states = await response.json();
+
+                states.forEach(state => {
+                    const option = document.createElement("option");
+                    option.value = state.sigla;
+                    option.textContent = state.nome;
+                    stateSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error("Erro ao carregar estados:", error);
+            }
+        }
+
+        async function loadCities() {
+            const state = document.getElementById("state").value;
+            const citySelect = document.getElementById("city");
+
+            citySelect.innerHTML = "";
+
+            try {
+                const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${state}/municipios`);
+                const cities = await response.json();
+
+                cities.forEach(city => {
+                    const option = document.createElement("option");
+                    option.value = city.nome;
+                    option.textContent = city.nome;
+                    citySelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error("Erro ao carregar cidades:", error);
+            }
+        }
+
+        async function fetchWeather() {
+            const city = document.getElementById("city").value;
+            const state = document.getElementById("state").value;
+            const errorMessage = document.getElementById("errorMessage");
+
+            errorMessage.style.display = "none";
+            document.getElementById("weatherResult").style.display = "none";
+            document.getElementById("airQualityResult").style.display = "none";
+
+            try {
+                let weatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=${city},${state},BR&appid=${apiKey1}&units=metric&lang=pt_br`;
+                let weatherResponse = await fetch(weatherUrl);
+
+                if (!weatherResponse.ok) {
+                    weatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=${city},${state},BR&appid=${apiKey2}&units=metric&lang=pt_br`;
+                    weatherResponse = await fetch(weatherUrl);
+                }
+
+                const weatherData = await weatherResponse.json();
+
+                if (weatherResponse.ok) {
+                    displayWeather(weatherData);
+                    changeBackground(weatherData.weather[0].main);
+                } else {
+                    throw new Error("Não foi possível obter os dados do clima.");
+                }
+
+                const airQualityUrl = `https://api.example.com/airquality?city=${city}&state=${state}`;
+                const airQualityResponse = await fetch(airQualityUrl);
+                const airQualityData = await airQualityResponse.json();
+
+                if (airQualityResponse.ok) {
+                    displayAirQuality(airQualityData);
+                } else {
+                    throw new Error("Não foi possível obter os dados da qualidade do ar.");
+                }
+            } catch (error) {
+                errorMessage.style.display = "block";
+                errorMessage.textContent = "Erro ao obter dados do clima ou qualidade do ar. Verifique a cidade e o estado informados.";
+            }
+        }
+
+        function displayWeather(data) {
+            document.getElementById("weatherResult").style.display = "block";
+            document.getElementById("temp").innerText = `Temperatura: ${data.main.temp}°C`;
+            document.getElementById("rain").innerText = `Precipitação: ${data.rain ? data.rain["1h"] + " mm" : "Sem chuva"}`;
+            document.getElementById("condition").innerText = `Condição do Clima: ${data.weather[0].description}`;
+            document.getElementById("feels_like").innerText = `Sensação Térmica: ${data.main.feels_like}°C`;
+            document.getElementById("humidity").innerText = `Umidade: ${data.main.humidity}%`;
+            document.getElementById("wind").innerText = `Vento: ${data.wind.speed} m/s`;
+        }
+
+        function displayAirQuality(data) {
+            document.getElementById("airQualityResult").style.display = "block";
+            document.getElementById("aqi").innerText = `Índice de Qualidade do Ar (AQI): ${data.aqi}`;
+            document.getElementById("pollutants").innerText = `Poluentes: ${data.pollutants.join(", ")}`;
+        }
+
+        function changeBackground(weatherCondition) {
+            let backgroundImage = "";
+            switch (weatherCondition.toLowerCase()) {
+                case "clear":
+                    backgroundImage = "url('dia.png')";
+                    break;
+                case "rain":
+                    backgroundImage = "url('chuvoso.png')";
+                    break;
+                case "clouds":
+                    backgroundImage = "url('nublado.png')";
+                    break;
+                case "thunderstorm":
+                    backgroundImage = "url('tempestade.png')";
+                    break;
+                default:
+                    backgroundImage = "url('dia.png')";
+            }
+            document.body.style.backgroundImage = backgroundImage;
+        }
+
+        window.onload = loadStates;
+    </script>
+</body>
+</html>
